@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { OtpGateway } from './otp.gateway';
 import { PlainWsService } from './plain-ws.service';
 import { OtpPayload } from './otp.types';
+import { MqttService } from './mqtt.service';
 
 @Injectable()
 export class OtpService {
@@ -12,6 +13,7 @@ export class OtpService {
   constructor(
     private readonly gateway: OtpGateway,
     private readonly plainWs: PlainWsService,
+    private readonly mqttService: MqttService,
   ) {
     const minutes = Number(process.env.OTP_EXPIRATION_MINUTES || 5);
     this.expirationMinutes = Number.isFinite(minutes) ? minutes : 5;
@@ -31,6 +33,7 @@ export class OtpService {
     this.logger.log(`Updated OTP to ${code} (expires at ${this.lastOtp.expiresAt})`);
     this.gateway.broadcastOtp(this.lastOtp);
     this.plainWs.broadcastOtp(this.lastOtp);
+    this.mqttService.publishOtp(this.lastOtp);
   }
 
   getLastOtp(): OtpPayload | undefined {

@@ -10,6 +10,8 @@ services:
       - OTP_EXPIRATION_MINUTES=${OTP_EXPIRATION_MINUTES:-5}
       - IMAP_HOST=${IMAP_HOST:-imap.gmail.com}
       - IMAP_PORT=${IMAP_PORT:-993}
+      - OTP_MQTT_URL=${OTP_MQTT_URL:-mqtt://mqtt-broker:1883}
+      - OTP_MQTT_TOPIC=${OTP_MQTT_TOPIC:-bambu/otp}
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.bambu-otp.rule=Host(`${TRAEFIK_DOMAIN}`)"
@@ -22,6 +24,15 @@ services:
     restart: unless-stopped
     networks:
       - traefik_proxy
+
+  mqtt-broker:
+    image: eclipse-mosquitto:2
+    container_name: mqtt-broker
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    networks:
+      - traefik
 
 networks:
   traefik_proxy:
