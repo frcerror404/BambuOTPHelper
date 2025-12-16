@@ -1,0 +1,15 @@
+version: '3.9'
+services:
+  bambu-otp-service:
+    build: .
+    container_name: bambu-otp-service
+    environment:
+      - PORT=3000
+      - GMAIL_USER=${GMAIL_USER}
+      - GMAIL_APP_PASSWORD=${GMAIL_APP_PASSWORD}
+      - OTP_EXPIRATION_MINUTES=${OTP_EXPIRATION_MINUTES:-5}
+      - IMAP_HOST=${IMAP_HOST:-imap.gmail.com}
+      - IMAP_PORT=${IMAP_PORT:-993}
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
