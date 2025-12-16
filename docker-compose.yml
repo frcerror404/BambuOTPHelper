@@ -23,7 +23,7 @@ services:
       - "3000"
     restart: unless-stopped
     networks:
-      - traefik
+      - traefik_proxy
 
   mqtt-broker:
     image: eclipse-mosquitto:2
@@ -35,5 +35,5 @@ services:
       - traefik
 
 networks:
-  traefik:
+  traefik_proxy:
     external: true
