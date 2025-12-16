@@ -21,8 +21,8 @@ services:
       - "3000"
     restart: unless-stopped
     networks:
-      - traefik
+      - traefik_proxy
 
 networks:
-  traefik:
+  traefik_proxy:
     external: true
