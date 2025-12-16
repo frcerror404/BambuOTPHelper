@@ -190,7 +190,7 @@
 
         socket.on('otp', (payload) => {
           appendLog(`Received OTP payload: ${JSON.stringify(payload)}`);
-          latestEl.textContent = `Latest OTP: ${payload.otp ?? 'N/A'}`;
+          latestEl.textContent = `Latest OTP: ${payload.code ?? 'N/A'}`;
         });
       };
 
@@ -202,8 +202,8 @@
           }
           const data = await response.json();
           appendLog(`Fetched latest OTP from REST endpoint: ${JSON.stringify(data)}`);
-          if (data.otp) {
-            latestEl.textContent = `Latest OTP: ${data.otp}`;
+          if (data.code) {
+            latestEl.textContent = `Latest OTP: ${data.code}`;
           }
         } catch (err) {
           appendLog(`Unable to fetch latest OTP: ${err.message}`);
