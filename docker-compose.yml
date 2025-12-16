@@ -12,7 +12,7 @@ services:
       - IMAP_PORT=${IMAP_PORT:-993}
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.bambu-otp.rule=Host(`\${TRAEFIK_DOMAIN}`)"
+      - "traefik.http.routers.bambu-otp.rule=Host(`${TRAEFIK_DOMAIN}`)"
       - "traefik.http.routers.bambu-otp.entrypoints=websecure"
       - "traefik.http.routers.bambu-otp.tls=true"
       - "traefik.http.routers.bambu-otp.tls.certresolver=letsencrypt"
