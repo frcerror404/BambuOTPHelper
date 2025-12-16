@@ -10,6 +10,19 @@ services:
       - OTP_EXPIRATION_MINUTES=${OTP_EXPIRATION_MINUTES:-5}
       - IMAP_HOST=${IMAP_HOST:-imap.gmail.com}
       - IMAP_PORT=${IMAP_PORT:-993}
-    ports:
-      - "3000:3000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bambu-otp.rule=Host(`\${TRAEFIK_DOMAIN}`)"
+      - "traefik.http.routers.bambu-otp.entrypoints=websecure"
+      - "traefik.http.routers.bambu-otp.tls=true"
+      - "traefik.http.routers.bambu-otp.tls.certresolver=letsencrypt"
+      - "traefik.http.services.bambu-otp.loadbalancer.server.port=3000"
+    expose:
+      - "3000"
     restart: unless-stopped
+    networks:
+      - traefik
+
+networks:
+  traefik:
+    external: true
