@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bambu OTP Test Client</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      }
+
+      body {
+        margin: 0;
+        padding: 2rem 1.5rem;
+        background: radial-gradient(circle at top right, rgba(0, 140, 255, 0.08), transparent 40%),
+          radial-gradient(circle at bottom left, rgba(255, 204, 0, 0.08), transparent 35%);
+      }
+
+      h1 {
+        margin-top: 0;
+      }
+
+      .panel {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 1.5rem;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.08);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+        backdrop-filter: blur(10px);
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 0.75rem;
+        align-items: center;
+      }
+
+      label {
+        font-weight: 600;
+      }
+
+      input[type='text'] {
+        width: 100%;
+        padding: 0.6rem 0.75rem;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        background: rgba(255, 255, 255, 0.1);
+        color: inherit;
+      }
+
+      button {
+        padding: 0.65rem 1rem;
+        border: none;
+        border-radius: 8px;
+        background-color: #0077ff;
+        color: white;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      button:disabled {
+        background-color: gray;
+        cursor: not-allowed;
+      }
+
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-weight: 600;
+      }
+
+      .status-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background-color: #888;
+      }
+
+      .status-dot.connected {
+        background-color: #1ecb4f;
+      }
+
+      .status-dot.disconnected {
+        background-color: #d64545;
+      }
+
+      .log {
+        margin-top: 1.25rem;
+        padding: 1rem;
+        background: rgba(0, 0, 0, 0.45);
+        border-radius: 10px;
+        font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+        white-space: pre-wrap;
+        max-height: 320px;
+        overflow-y: auto;
+      }
+
+      .latest {
+        margin-top: 1rem;
+        padding: 1rem;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.05);
+      }
+    </style>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" integrity="sha384-h3pSAB//l+tIPJsBNvaHV0yZP6e9wHAa+EzD9yFXqGiKcy+nRLldJpPs7Osn2s5n" crossorigin="anonymous"></script>
+  </head>
+  <body>
+    <div class="panel">
+      <h1>Bambu OTP Test Client</h1>
+      <p>Connects to the OTP service over Socket.IO and logs any incoming <code>otp</code> events.</p>
+
+      <div class="row">
+        <label for="server-input">Server URL</label>
+        <input
+          id="server-input"
+          type="text"
+          value="http://localhost:3000"
+          aria-label="OTP service base URL"
+        />
+        <button id="connect-btn">Connect</button>
+      </div>
+
+      <p class="status" id="status">
+        <span class="status-dot disconnected" id="status-dot"></span>
+        <span id="status-text">Disconnected</span>
+      </p>
+
+      <div class="latest" id="latest">Latest OTP: —</div>
+      <div class="log" id="log" aria-live="polite"></div>
+    </div>
+
+    <script>
+      const statusDot = document.getElementById('status-dot');
+      const statusText = document.getElementById('status-text');
+      const latestEl = document.getElementById('latest');
+      const logEl = document.getElementById('log');
+      const serverInput = document.getElementById('server-input');
+      const connectBtn = document.getElementById('connect-btn');
+
+      let socket;
+
+      const appendLog = (message) => {
+        const time = new Date().toLocaleTimeString();
+        logEl.textContent += `[${time}] ${message}\n`;
+        logEl.scrollTop = logEl.scrollHeight;
+      };
+
+      const setStatus = (text, connected) => {
+        statusText.textContent = text;
+        statusDot.className = `status-dot ${connected ? 'connected' : 'disconnected'}`;
+        connectBtn.disabled = connected;
+      };
+
+      const connect = () => {
+        const url = serverInput.value.trim();
+        if (!url) {
+          appendLog('Please enter a server URL before connecting.');
+          return;
+        }
+
+        if (socket) {
+          socket.disconnect();
+        }
+
+        appendLog(`Connecting to ${url} ...`);
+        socket = io(url, {
+          transports: ['websocket', 'polling'],
+        });
+
+        socket.on('connect', () => {
+          setStatus('Connected', true);
+          appendLog('Connected to server.');
+          fetchLatestOtp(url);
+        });
+
+        socket.on('connect_error', (err) => {
+          setStatus('Connection error', false);
+          appendLog(`Connection error: ${err.message}`);
+        });
+
+        socket.on('disconnect', (reason) => {
+          setStatus(`Disconnected (${reason})`, false);
+          appendLog(`Disconnected: ${reason}`);
+        });
+
+        socket.on('otp', (payload) => {
+          appendLog(`Received OTP payload: ${JSON.stringify(payload)}`);
+          latestEl.textContent = `Latest OTP: ${payload.otp ?? 'N/A'}`;
+        });
+      };
+
+      const fetchLatestOtp = async (url) => {
+        try {
+          const response = await fetch(`${url.replace(/\/$/, '')}/otp`);
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          const data = await response.json();
+          appendLog(`Fetched latest OTP from REST endpoint: ${JSON.stringify(data)}`);
+          if (data.otp) {
+            latestEl.textContent = `Latest OTP: ${data.otp}`;
+          }
+        } catch (err) {
+          appendLog(`Unable to fetch latest OTP: ${err.message}`);
+        }
+      };
+
+      connectBtn.addEventListener('click', connect);
+    </script>
+  </body>
+</html>
