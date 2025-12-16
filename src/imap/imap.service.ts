@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { ImapFlow } from 'imapflow';
+import { ImapFlow, ExistsEvent } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import { OtpService } from '../otp/otp.service';
 
@@ -49,8 +49,8 @@ export class ImapService implements OnModuleInit, OnModuleDestroy {
     await this.client.mailboxOpen('INBOX');
     this.logger.log('Connected to Gmail IMAP and monitoring INBOX');
 
-    this.client.on('exists', async (messageCount) => {
-      await this.handleNewMail(messageCount).catch((error) => {
+    this.client.on('exists', async (event: ExistsEvent) => {
+      await this.handleNewMail(event.count).catch((error) => {
         this.logger.error('Error handling new mail', error as Error);
       });
     });
@@ -66,7 +66,11 @@ export class ImapService implements OnModuleInit, OnModuleDestroy {
       source: true,
     });
 
-    if (!message?.source) {
+    if (!message) {
+      return;
+    }
+
+    if (!message.source) {
       return;
     }
 
