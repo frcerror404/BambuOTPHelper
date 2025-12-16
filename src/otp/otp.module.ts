@@ -2,9 +2,11 @@ import { Module } from '@nestjs/common';
 import { OtpService } from './otp.service';
 import { OtpGateway } from './otp.gateway';
 import { OtpController } from './otp.controller';
+import { PlainWsService } from './plain-ws.service';
+import { MqttService } from './mqtt.service';
 
 @Module({
-  providers: [OtpService, OtpGateway],
+  providers: [OtpService, OtpGateway, PlainWsService, MqttService],
   controllers: [OtpController],
   exports: [OtpService],
 })
