@@ -32,48 +32,32 @@ services:
     image: eclipse-mosquitto:2
     container_name: mqtt-broker
     restart: unless-stopped
-    user: "1883:1883"
-
     ports:
       - "1883:1883"
-
+    volumes:
+      - mosq_config:/mosquitto/config
+      - mosq_data:/mosquitto/data
     environment:
       - OTP_MQTT_USERNAME=${OTP_MQTT_USERNAME}
       - OTP_MQTT_PASSWORD=${OTP_MQTT_PASSWORD}
-
-    volumes:
-      # mosquitto.conf comes from git
-      - ./mosquitto/mosquitto.conf:/tmp/mosquitto.conf:ro
-
-      # runtime state lives here
-      - mosq_config:/mosquitto/config
-      - mosq_data:/mosquitto/data
-
     command: >
-      sh -euxc '
-        : "$$OTP_MQTT_USERNAME"
-        : "$$OTP_MQTT_PASSWORD"
-
-        # Ensure config directory exists
-        mkdir -p /mosquitto/config
-
-        # Copy config from git into writable volume
-        cp /tmp/mosquitto.conf /mosquitto/config/mosquitto.conf
-
-        # Create password file once
-        if [ ! -f /mosquitto/config/passwordfile ]; then
-          mosquitto_passwd -b /mosquitto/config/passwordfile \
-            "$$OTP_MQTT_USERNAME" "$$OTP_MQTT_PASSWORD"
-          chmod 640 /mosquitto/config/passwordfile
-        fi
-
+      sh -c '
+        set -e
+        [ -f /mosquitto/config/mosquitto.conf ] || cat > /mosquitto/config/mosquitto.conf <<EOF
+      persistence true
+      persistence_location /mosquitto/data/
+      log_dest stdout
+      listener 1883 0.0.0.0
+      allow_anonymous false
+      password_file /mosquitto/config/passwordfile
+      EOF
+        [ -f /mosquitto/config/passwordfile ] || (mosquitto_passwd -b /mosquitto/config/passwordfile "$$OTP_MQTT_USERNAME" "$$OTP_MQTT_PASSWORD" && chmod 640 /mosquitto/config/passwordfile)
         exec mosquitto -c /mosquitto/config/mosquitto.conf
       '
 
 volumes:
   mosq_config:
   mosq_data:
-
 
 networks:
   traefik_proxy:
