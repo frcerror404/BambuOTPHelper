@@ -29,41 +29,34 @@ services:
       - traefik_proxy
 
   mqtt-broker:
-    user: "1883:1883"
-    image: eclipse-mosquitto:2
-    container_name: mqtt-broker
-    environment:
-      - MQTT_USERNAME=${OTP_MQTT_USERNAME}
-      - MQTT_PASSWORD=${OTP_MQTT_PASSWORD}
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=traefik_proxy"
-      - "traefik.tcp.routers.mqtt.rule=HostSNI(`*`)"
-      - "traefik.tcp.routers.mqtt.entrypoints=mqtt"
-      - "traefik.tcp.routers.mqtt.tls=true"
-      - "traefik.tcp.routers.mqtt.tls.certresolver=letsencrypt"
-      - "traefik.tcp.routers.mqtt.service=mqtt"
-      - "traefik.tcp.services.mqtt.loadbalancer.server.port=1883"
-    # command: >
-    #   /bin/sh -c "\
-    #   set -e; \
-    #   mkdir -p /mosquitto/config; \
-    #   if [ ! -f /mosquitto/config/passwordfile ]; then \
-    #     mosquitto_passwd -b /mosquitto/config/passwordfile \"${MQTT_USERNAME}\" \"${MQTT_PASSWORD}\"; \
-    #   fi; \
-    #   exec mosquitto -c /mosquitto/config/mosquitto.conf"
-    command: ["sleep", "infinity"]
-    restart: "no"
-    volumes:
-      - mqtt_config:/mosquitto/config
-      - mqtt_data:/mosquitto/data
-    networks:
-      - traefik_proxy
+  image: eclipse-mosquitto:2
+  container_name: mqtt-broker
+  restart: unless-stopped
+  user: "1883:1883"
+  ports:
+    - "1883:1883"
+  environment:
+    - MQTT_USERNAME=${OTP_MQTT_USERNAME}
+    - MQTT_PASSWORD=${OTP_MQTT_PASSWORD}
+  command: >
+    sh -euxc '
+      : "${MQTT_USERNAME:?MQTT_USERNAME not set}"
+      : "${MQTT_PASSWORD:?MQTT_PASSWORD not set}"
+      mkdir -p /mosquitto/config /mosquitto/data
+      if [ ! -f /mosquitto/config/passwordfile ]; then
+        mosquitto_passwd -b /mosquitto/config/passwordfile "$MQTT_USERNAME" "$MQTT_PASSWORD"
+        chmod 640 /mosquitto/config/passwordfile
+      fi
+      exec mosquitto -c /mosquitto/config/mosquitto.conf
+    '
+  volumes:
+    - waverly_otp_mqtt_config:/mosquitto/config
+    - waverly_otp_mqtt_data:/mosquitto/data
 
 networks:
   traefik_proxy:
     external: true
 
 volumes:
-  mqtt_config:
-  mqtt_data:
+  waverly_otp_mqtt_config:
+  waverly_otp_mqtt_data:
