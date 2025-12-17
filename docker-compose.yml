@@ -10,7 +10,7 @@ services:
       - OTP_EXPIRATION_MINUTES=${OTP_EXPIRATION_MINUTES:-5}
       - IMAP_HOST=${IMAP_HOST:-imap.gmail.com}
       - IMAP_PORT=${IMAP_PORT:-993}
-      - OTP_MQTT_URL=${OTP_MQTT_URL:-mqtts://mqtt-broker:8883}
+      - OTP_MQTT_URL=${OTP_MQTT_URL:-mqtts://mqtt-broker:1883}
       - OTP_MQTT_TOPIC=${OTP_MQTT_TOPIC:-bambu/otp}
       - OTP_MQTT_USERNAME=${OTP_MQTT_USERNAME}
       - OTP_MQTT_PASSWORD=${OTP_MQTT_PASSWORD}
@@ -40,7 +40,7 @@ services:
       - /root/docker-setup/mqtt/log:/mosquitto/log
     networks:
         - traefik_proxy
-        
+
 networks:
   traefik_proxy:
     external: true
