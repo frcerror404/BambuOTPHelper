@@ -28,35 +28,43 @@ services:
     networks:
       - traefik_proxy
 
-  mqtt-broker:
-  image: eclipse-mosquitto:2
-  container_name: mqtt-broker
-  restart: unless-stopped
-  user: "1883:1883"
-  ports:
-    - "1883:1883"
-  environment:
-    - MQTT_USERNAME=${OTP_MQTT_USERNAME}
-    - MQTT_PASSWORD=${OTP_MQTT_PASSWORD}
-  command: >
-    sh -euxc '
-      : "${MQTT_USERNAME:?MQTT_USERNAME not set}"
-      : "${MQTT_PASSWORD:?MQTT_PASSWORD not set}"
-      mkdir -p /mosquitto/config /mosquitto/data
-      if [ ! -f /mosquitto/config/passwordfile ]; then
-        mosquitto_passwd -b /mosquitto/config/passwordfile "$MQTT_USERNAME" "$MQTT_PASSWORD"
-        chmod 640 /mosquitto/config/passwordfile
-      fi
-      exec mosquitto -c /mosquitto/config/mosquitto.conf
-    '
-  volumes:
-    - waverly_otp_mqtt_config:/mosquitto/config
-    - waverly_otp_mqtt_data:/mosquitto/data
+mqtt-broker:
+    image: eclipse-mosquitto:2
+    container_name: mqtt-broker
+    restart: unless-stopped
+
+    user: "1883:1883"
+
+    ports:
+      - "1883:1883"
+
+    environment:
+      - MQTT_USERNAME=${OTP_MQTT_USERNAME}
+      - MQTT_PASSWORD=${OTP_MQTT_PASSWORD}
+
+    volumes:
+      - mosq_config:/mosquitto/config
+      - mosq_data:/mosquitto/data
+
+    command: >
+      sh -euxc '
+        : "${MQTT_USERNAME:?OTP_MQTT_USERNAME not set}"
+        : "${MQTT_PASSWORD:?OTP_MQTT_PASSWORD not set}"
+
+        if [ ! -f /mosquitto/config/passwordfile ]; then
+          mosquitto_passwd -b /mosquitto/config/passwordfile \
+            "$MQTT_USERNAME" "$MQTT_PASSWORD"
+          chmod 640 /mosquitto/config/passwordfile
+        fi
+
+        exec mosquitto -c /mosquitto/config/mosquitto.conf
+      '
+
+volumes:
+  mosq_config:
+  mosq_data:
+
 
 networks:
   traefik_proxy:
     external: true
-
-volumes:
-  waverly_otp_mqtt_config:
-  waverly_otp_mqtt_data:
