@@ -12,8 +12,11 @@ services:
       - IMAP_PORT=${IMAP_PORT:-993}
       - OTP_MQTT_URL=${OTP_MQTT_URL:-mqtt://mqtt-broker:1883}
       - OTP_MQTT_TOPIC=${OTP_MQTT_TOPIC:-bambu/otp}
+      - OTP_MQTT_USERNAME=${OTP_MQTT_USERNAME}
+      - OTP_MQTT_PASSWORD=${OTP_MQTT_PASSWORD}
     labels:
       - "traefik.enable=true"
+      - "traefik.docker.network=traefik_proxy"
       - "traefik.http.routers.bambu-otp.rule=Host(`${TRAEFIK_DOMAIN}`)"
       - "traefik.http.routers.bambu-otp.entrypoints=websecure"
       - "traefik.http.routers.bambu-otp.tls=true"
@@ -29,10 +32,31 @@ services:
     image: eclipse-mosquitto:2
     container_name: mqtt-broker
     restart: unless-stopped
-    ports:
-      - "1883:1883"
+    environment:
+      - MQTT_USERNAME=${OTP_MQTT_USERNAME}
+      - MQTT_PASSWORD=${OTP_MQTT_PASSWORD}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_proxy"
+      - "traefik.tcp.routers.mqtt.rule=HostSNI(`*`)"
+      - "traefik.tcp.routers.mqtt.entrypoints=mqtt"
+      - "traefik.tcp.routers.mqtt.tls=true"
+      - "traefik.tcp.routers.mqtt.tls.certresolver=letsencrypt"
+      - "traefik.tcp.routers.mqtt.service=mqtt"
+      - "traefik.tcp.services.mqtt.loadbalancer.server.port=1883"
+    command: >
+      /bin/sh -c "\
+      set -e; \
+      mkdir -p /mosquitto/config; \
+      if [ ! -f /mosquitto/config/passwordfile ]; then \
+        mosquitto_passwd -b /mosquitto/config/passwordfile \"${MQTT_USERNAME}\" \"${MQTT_PASSWORD}\"; \
+      fi; \
+      exec mosquitto -c /mosquitto/config/mosquitto.conf"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
     networks:
-      - traefik
+      - traefik_proxy
 
 networks:
   traefik_proxy:
