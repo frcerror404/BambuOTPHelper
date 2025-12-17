@@ -31,8 +31,10 @@ FALLBACK_TTL_S = 300.0     # default 5 minutes
 UI_TICK_S = 0.2            # UI refresh cadence
 RECONNECT_DELAY_S = 2.0    # retry delay when MQTT is down
 
-# ---------------- DISPLAY (CircuitPython 10) ----------------
+PLACEHOLDER_CODE = "------"
+CLEAR_AFTER_S = 360.0   # 6 minutes
 
+# ---------------- DISPLAY (CircuitPython 10) ----------------
 display = board.DISPLAY
 display.auto_refresh = True
 
@@ -56,17 +58,6 @@ code_label.anchor_point = (0.5, 0.5)
 code_label.anchored_position = (display.width // 2, display.height // 2 - 10)
 main_group.append(code_label)
 
-# Info label
-info_label = label.Label(
-    terminalio.FONT,
-    text="Waiting for code...",
-    color=0x8888FF,
-    scale=1,
-)
-info_label.anchor_point = (0.5, 0.0)
-info_label.anchored_position = (display.width // 2, 4)
-main_group.append(info_label)
-
 # MQTT status label (top-left)
 mqtt_label = label.Label(
     terminalio.FONT,
@@ -78,38 +69,99 @@ mqtt_label.anchor_point = (0.0, 0.0)
 mqtt_label.anchored_position = (4, 4)
 main_group.append(mqtt_label)
 
-# Progress bar
+
+
+# ------------- PROGRESS BAR (Bitmap-based; reliable in CP10) -------------
+
 BAR_MARGIN = 6
 BAR_HEIGHT = 10
 bar_x = BAR_MARGIN
 bar_y = display.height - BAR_MARGIN - BAR_HEIGHT
 bar_width_max = display.width - 2 * BAR_MARGIN
 
-bar_bg = Rect(
-    bar_x, bar_y, bar_width_max, BAR_HEIGHT,
-    fill=0x222222, outline=0x555555, stroke=1
-)
-main_group.append(bar_bg)
+# Bitmap with 2 colors: 0=empty, 1=filled
+bar_bitmap = displayio.Bitmap(bar_width_max, BAR_HEIGHT, 2)
+bar_palette = displayio.Palette(2)
+bar_palette[0] = 0x222222  # empty (dark gray)
+bar_palette[1] = 0xFFAA00  # filled (orange; we'll change to red near end)
 
-bar_fill = Rect(
-    bar_x, bar_y, bar_width_max, BAR_HEIGHT,
-    fill=0xFFAA00, outline=None
+bar_tile = displayio.TileGrid(bar_bitmap, pixel_shader=bar_palette, x=bar_x, y=bar_y)
+main_group.append(bar_tile)
+
+# Optional outline (static) using a Rect just for border (doesn't animate)
+bar_outline = Rect(
+    bar_x - 1, bar_y - 1,
+    bar_width_max + 2, BAR_HEIGHT + 2,
+    fill=None, outline=0x555555, stroke=1
 )
-main_group.append(bar_fill)
+main_group.append(bar_outline)
+
+_bar_last_width = -1  # track previous width so we only update changed columns
+
+# Info label: placed just above the progress bar
+info_label = label.Label(
+    terminalio.FONT,
+    text="Waiting for code...",
+    color=0x8888FF,
+    scale=1,
+)
+
+info_label.anchor_point = (0.5, 1.0)  # center horizontally, bottom-aligned
+info_label.anchored_position = (
+    display.width // 2,
+    bar_y - 4,   # 4px gap above the progress bar
+)
+
+main_group.append(info_label)
+
+
+def clear_code_ui():
+    global latest_code, last_received_monotonic, expires_monotonic
+    latest_code = None
+    last_received_monotonic = None
+    expires_monotonic = None
+    code_label.text = PLACEHOLDER_CODE
+    info_label.text = "Waiting for code..."
+    set_progress_fraction(0.0)
+
 
 def set_progress_fraction(frac):
+    global _bar_last_width
+
     if frac < 0:
         frac = 0
     if frac > 1:
         frac = 1
-    new_width = int(bar_width_max * frac)
-    bar_fill.size = (new_width, BAR_HEIGHT)  # CP10: use .size
 
-    # turn red when < 60s left (assuming ~5 min), otherwise orange
+    new_width = int(bar_width_max * frac)
+
+    # Change fill color near the end (e.g., <60s remaining assuming 5 min)
+    # This works by changing palette index 1.
     if frac <= (60.0 / FALLBACK_TTL_S):
-        bar_fill.fill = 0xFF3333
+        bar_palette[1] = 0xFF3333  # red
     else:
-        bar_fill.fill = 0xFFAA00
+        bar_palette[1] = 0xFFAA00  # orange
+
+    # Only redraw the columns that changed since last time
+    if _bar_last_width == -1:
+        # First draw: clear everything
+        for x in range(bar_width_max):
+            v = 1 if x < new_width else 0
+            for y in range(BAR_HEIGHT):
+                bar_bitmap[x, y] = v
+    elif new_width > _bar_last_width:
+        # Bar grew (fill more columns)
+        for x in range(_bar_last_width, new_width):
+            for y in range(BAR_HEIGHT):
+                bar_bitmap[x, y] = 1
+    elif new_width < _bar_last_width:
+        # Bar shrank (clear columns)
+        for x in range(new_width, _bar_last_width):
+            for y in range(BAR_HEIGHT):
+                bar_bitmap[x, y] = 0
+
+    _bar_last_width = new_width
+
 
 # ---------------- STATE ----------------
 
@@ -214,10 +266,19 @@ def update_ui_time():
 
     if last_received_monotonic is None:
         info_label.text = "Waiting for code..."
+        if code_label.text != PLACEHOLDER_CODE:
+            code_label.text = PLACEHOLDER_CODE
         set_progress_fraction(0.0)
         return
 
     elapsed = now - last_received_monotonic
+
+    # NEW: clear the UI after 6 minutes
+    if elapsed >= CLEAR_AFTER_S:
+        clear_code_ui()
+        return
+
+    # "last received" label
     if elapsed < 5:
         info_label.text = "Code received just now"
     elif elapsed < 60:
@@ -227,8 +288,12 @@ def update_ui_time():
         secs = int(elapsed % 60)
         info_label.text = "Code received {}m {:02d}s ago".format(mins, secs)
 
+    # Progress bar countdown
     if expires_monotonic is None:
-        set_progress_fraction(0.0)
+        remaining = FALLBACK_TTL_S - elapsed
+        if remaining < 0:
+            remaining = 0
+        set_progress_fraction(remaining / FALLBACK_TTL_S)
         return
 
     remaining = expires_monotonic - now
