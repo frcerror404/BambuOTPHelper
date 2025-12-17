@@ -78,6 +78,11 @@ export class ImapService implements OnModuleInit, OnModuleDestroy {
     const isBambuEmail = this.isFromBambu(parsed.subject, parsed.from?.text);
 
     if (!isBambuEmail) {
+      this.logger.log(
+        `Ignoring non-Bambu email: subject="${parsed.subject || ''}" from="${
+          parsed.from?.text || ''
+        }"`,
+      );
       return;
     }
 
