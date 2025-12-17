@@ -28,13 +28,11 @@ services:
     networks:
       - traefik_proxy
 
-mqtt-broker:
+  mqtt-broker:
     image: eclipse-mosquitto:2
     container_name: mqtt-broker
     restart: unless-stopped
-
     user: "1883:1883"
-
     ports:
       - "1883:1883"
 
@@ -43,6 +41,7 @@ mqtt-broker:
       - MQTT_PASSWORD=${OTP_MQTT_PASSWORD}
 
     volumes:
+      - ./mosquitto/mosquitto.conf:/tmp/mosquitto.conf:ro
       - mosq_config:/mosquitto/config
       - mosq_data:/mosquitto/data
 
@@ -51,9 +50,14 @@ mqtt-broker:
         : "${MQTT_USERNAME:?OTP_MQTT_USERNAME not set}"
         : "${MQTT_PASSWORD:?OTP_MQTT_PASSWORD not set}"
 
+        # Ensure config exists in the writable config volume
+        if [ ! -f /mosquitto/config/mosquitto.conf ]; then
+          cp /tmp/mosquitto.conf /mosquitto/config/mosquitto.conf
+        fi
+
+        # Ensure password file exists
         if [ ! -f /mosquitto/config/passwordfile ]; then
-          mosquitto_passwd -b /mosquitto/config/passwordfile \
-            "$MQTT_USERNAME" "$MQTT_PASSWORD"
+          mosquitto_passwd -b /mosquitto/config/passwordfile "$MQTT_USERNAME" "$MQTT_PASSWORD"
           chmod 640 /mosquitto/config/passwordfile
         fi
 
