@@ -12,7 +12,7 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
   private readonly password?: string;
 
   constructor() {
-    this.brokerUrl = process.env.OTP_MQTT_URL || 'mqtt://mqtt-broker:1883';
+    this.brokerUrl = process.env.OTP_MQTT_URL || 'mqtts://mqtt-broker:8883';
     this.topic = process.env.OTP_MQTT_TOPIC || 'bambu/otp';
     this.username = process.env.OTP_MQTT_USERNAME;
     this.password = process.env.OTP_MQTT_PASSWORD;

@@ -78,7 +78,6 @@ export class ImapService implements OnModuleInit, OnModuleDestroy {
     const isBambuEmail = this.isFromBambu(parsed.subject, parsed.from?.text);
 
     if (!isBambuEmail) {
-      this.logger.debug('Skipped non-Bambu email');
       return;
     }
 
