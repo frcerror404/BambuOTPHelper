@@ -17,7 +17,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik_proxy"
-      - "traefik.http.routers.bambu-otp.rule=Host(`${TRAEFIK_DOMAIN}`)"
+      - "traefik.http.routers.bambu-otp.rule=Host(`${OTP_DOMAIN}`)"
       - "traefik.http.routers.bambu-otp.entrypoints=websecure"
       - "traefik.http.routers.bambu-otp.tls=true"
       - "traefik.http.routers.bambu-otp.tls.certresolver=letsencrypt"
@@ -32,14 +32,24 @@ services:
     image: eclipse-mosquitto:2
     container_name: mqtt-broker
     restart: unless-stopped
-    ports:
-      - "1883:1883"
+    networks:
+      - traefik_proxy
     volumes:
       - /root/docker-setup/mqtt/config:/mosquitto/config
       - /root/docker-setup/mqtt/data:/mosquitto/data
       - /root/docker-setup/mqtt/log:/mosquitto/log
-    networks:
-        - traefik_proxy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=traefik_proxy
+
+      # TLS MQTT router
+      - traefik.tcp.routers.mqtts.rule=HostSNI(`${OTP_DOMAIN}`)
+      - traefik.tcp.routers.mqtts.entrypoints=mqtts
+      - traefik.tcp.routers.mqtts.tls=true
+      - traefik.tcp.routers.mqtts.tls.certresolver=letsencrypt
+      - traefik.tcp.routers.mqtts.service=mqtt
+
+      - traefik.tcp.services.mqtt.loadbalancer.server.port=1883
 
 networks:
   traefik_proxy:
