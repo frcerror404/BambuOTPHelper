@@ -37,8 +37,8 @@ services:
       - "1883:1883"
 
     environment:
-      - MQTT_USERNAME=${OTP_MQTT_USERNAME}
-      - MQTT_PASSWORD=${OTP_MQTT_PASSWORD}
+      - OTP_MQTT_USERNAME=${OTP_MQTT_USERNAME}
+      - OTP_MQTT_PASSWORD=${OTP_MQTT_PASSWORD}
 
     volumes:
       - ./mosquitto/mosquitto.conf:/tmp/mosquitto.conf:ro
