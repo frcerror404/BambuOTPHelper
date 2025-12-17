@@ -47,17 +47,15 @@ services:
 
     command: >
       sh -euxc '
-        : "${MQTT_USERNAME:?OTP_MQTT_USERNAME not set}"
-        : "${MQTT_PASSWORD:?OTP_MQTT_PASSWORD not set}"
+        : "$$OTP_MQTT_USERNAME"
+        : "$$OTP_MQTT_PASSWORD"
 
-        # Ensure config exists in the writable config volume
-        if [ ! -f /mosquitto/config/mosquitto.conf ]; then
-          cp /tmp/mosquitto.conf /mosquitto/config/mosquitto.conf
-        fi
+        # Keep config in the writable volume (seed from git)
+        cp /tmp/mosquitto.conf /mosquitto/config/mosquitto.conf
 
-        # Ensure password file exists
+        # Create password file if missing
         if [ ! -f /mosquitto/config/passwordfile ]; then
-          mosquitto_passwd -b /mosquitto/config/passwordfile "$MQTT_USERNAME" "$MQTT_PASSWORD"
+          mosquitto_passwd -b /mosquitto/config/passwordfile "$$OTP_MQTT_USERNAME" "$$OTP_MQTT_PASSWORD"
           chmod 640 /mosquitto/config/passwordfile
         fi
 
