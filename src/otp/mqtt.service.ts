@@ -22,7 +22,7 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
     this.client = connect(this.brokerUrl, {
       username: this.username,
       password: this.password,
-      // Allows self-signed certificates by skipping CA verification; set to true when using a trusted CA
+      // Allows self-signed certificates by skipping CA verification when using mqtts; set to true when relying on a trusted CA
       rejectUnauthorized: false,
     });
 
