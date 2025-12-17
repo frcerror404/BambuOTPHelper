@@ -38,7 +38,9 @@ services:
       - /root/docker-setup/mqtt/config:/mosquitto/config
       - /root/docker-setup/mqtt/data:/mosquitto/data
       - /root/docker-setup/mqtt/log:/mosquitto/log
-
+    networks:
+        - traefik_proxy
+        
 networks:
   traefik_proxy:
     external: true
