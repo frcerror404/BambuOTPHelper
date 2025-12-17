@@ -1,0 +1,4 @@
+config/certs/*
+config/passwordfile
+data/*
+!data/.gitkeep

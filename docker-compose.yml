@@ -10,10 +10,13 @@ services:
       - OTP_EXPIRATION_MINUTES=${OTP_EXPIRATION_MINUTES:-5}
       - IMAP_HOST=${IMAP_HOST:-imap.gmail.com}
       - IMAP_PORT=${IMAP_PORT:-993}
-      - OTP_MQTT_URL=${OTP_MQTT_URL:-mqtt://mqtt-broker:1883}
+      - OTP_MQTT_URL=${OTP_MQTT_URL:-mqtts://mqtt-broker:8883}
       - OTP_MQTT_TOPIC=${OTP_MQTT_TOPIC:-bambu/otp}
+      - OTP_MQTT_USERNAME=${OTP_MQTT_USERNAME}
+      - OTP_MQTT_PASSWORD=${OTP_MQTT_PASSWORD}
     labels:
       - "traefik.enable=true"
+      - "traefik.docker.network=traefik_proxy"
       - "traefik.http.routers.bambu-otp.rule=Host(`${TRAEFIK_DOMAIN}`)"
       - "traefik.http.routers.bambu-otp.entrypoints=websecure"
       - "traefik.http.routers.bambu-otp.tls=true"
@@ -29,10 +32,37 @@ services:
     image: eclipse-mosquitto:2
     container_name: mqtt-broker
     restart: unless-stopped
+    environment:
+      - MQTT_USERNAME=${OTP_MQTT_USERNAME}
+      - MQTT_PASSWORD=${OTP_MQTT_PASSWORD}
+      - MQTT_CERT_HOST=${MQTT_CERT_HOST:-mqtt.local}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_proxy"
+      - "traefik.tcp.routers.mqtt.rule=HostSNI(`*`)"
+      - "traefik.tcp.routers.mqtt.entrypoints=mqtt"
+      - "traefik.tcp.routers.mqtt.service=mqtt"
+      - "traefik.tcp.routers.mqtt.tls=true"
+      - "traefik.tcp.routers.mqtt.tls.passthrough=true"
+      - "traefik.tcp.services.mqtt.loadbalancer.server.port=8883"
+    command: >
+      /bin/sh -c "\
+      set -e; \
+      mkdir -p /mosquitto/config/certs; \
+      if [ ! -f /mosquitto/config/passwordfile ]; then \
+        mosquitto_passwd -b /mosquitto/config/passwordfile \"${MQTT_USERNAME}\" \"${MQTT_PASSWORD}\"; \
+      fi; \
+      if [ ! -f /mosquitto/config/certs/server.crt ] || [ ! -f /mosquitto/config/certs/server.key ]; then \
+        openssl req -x509 -nodes -newkey rsa:4096 -keyout /mosquitto/config/certs/server.key -out /mosquitto/config/certs/server.crt -days 3650 -subj /CN=${MQTT_CERT_HOST}; \
+      fi; \
+      exec mosquitto -c /mosquitto/config/mosquitto.conf"
     ports:
-      - "1883:1883"
+      - "8883:8883"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
     networks:
-      - traefik
+      - traefik_proxy
 
 networks:
   traefik_proxy:
