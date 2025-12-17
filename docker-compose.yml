@@ -64,6 +64,4 @@ networks:
 
 volumes:
   mqtt_config:
-    external: true
   mqtt_data:
-    external: true
