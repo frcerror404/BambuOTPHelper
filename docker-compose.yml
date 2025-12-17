@@ -53,11 +53,17 @@ services:
       fi; \
       exec mosquitto -c /mosquitto/config/mosquitto.conf"
     volumes:
-      - ./mosquitto/config:/mosquitto/config
-      - ./mosquitto/data:/mosquitto/data
+      - mqqt_config:/mosquitto/config
+      - mqqt_data:/mosquitto/data
     networks:
       - traefik_proxy
 
 networks:
   traefik_proxy:
+    external: true
+
+volumes:
+  mqqt_config:
+    external: true
+  mqqt_data:
     external: true
