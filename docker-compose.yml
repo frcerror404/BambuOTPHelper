@@ -29,6 +29,7 @@ services:
       - traefik_proxy
 
   mqtt-broker:
+    user: "1883:1883"
     image: eclipse-mosquitto:2
     container_name: mqtt-broker
     environment:
