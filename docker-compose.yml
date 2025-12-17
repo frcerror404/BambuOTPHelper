@@ -32,7 +32,7 @@ services:
     ports:
       - "1883:1883"
     networks:
-      - traefik
+      - traefik_proxy
 
 networks:
   traefik_proxy:
