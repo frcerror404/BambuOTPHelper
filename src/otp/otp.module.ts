@@ -5,9 +5,16 @@ import { OtpController } from './otp.controller';
 import { PlainWsService } from './plain-ws.service';
 import { MqttService } from './mqtt.service';
 
+const otpControllersEnabled =
+  (process.env.OTP_CONTROLLERS_ENABLED || '').toLowerCase() === 'true';
+
+const otpProviders = otpControllersEnabled
+  ? [OtpService, OtpGateway, PlainWsService, MqttService]
+  : [OtpService, MqttService];
+
 @Module({
-  providers: [OtpService, OtpGateway, PlainWsService, MqttService],
-  controllers: [OtpController],
+  providers: otpProviders,
+  controllers: otpControllersEnabled ? [OtpController] : [],
   exports: [OtpService],
 })
 export class OtpModule {}
