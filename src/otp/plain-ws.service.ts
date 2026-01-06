@@ -1,6 +1,8 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
+import { IncomingMessage } from 'http';
 import { Server as WsServer, WebSocket } from 'ws';
+import { AuthService } from '../auth/auth.service';
 import { OtpPayload } from './otp.types';
 
 @Injectable()
@@ -8,7 +10,10 @@ export class PlainWsService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PlainWsService.name);
   private server?: WsServer;
 
-  constructor(private readonly adapterHost: HttpAdapterHost) {}
+  constructor(
+    private readonly adapterHost: HttpAdapterHost,
+    private readonly authService: AuthService,
+  ) {}
 
   onModuleInit() {
     const httpServer = this.adapterHost.httpAdapter?.getHttpServer();
@@ -23,7 +28,17 @@ export class PlainWsService implements OnModuleInit, OnModuleDestroy {
       path: '/ws',
     });
 
-    this.server.on('connection', (socket: WebSocket) => {
+    this.server.on('connection', (socket: WebSocket, request: IncomingMessage) => {
+      const token = this.extractTokenFromRequest(request);
+
+      try {
+        this.authService.verifyToken(token);
+      } catch (error) {
+        this.logger.warn('Unauthorized WebSocket connection attempt');
+        socket.close(1008, 'unauthorized');
+        return;
+      }
+
       this.logger.log('Plain WebSocket client connected');
 
       socket.on('close', () => {
@@ -49,5 +64,12 @@ export class PlainWsService implements OnModuleInit, OnModuleDestroy {
 
   onModuleDestroy() {
     this.server?.close();
+  }
+
+  private extractTokenFromRequest(request: IncomingMessage) {
+    if (!request.url) return undefined;
+
+    const url = new URL(request.url, 'http://localhost');
+    return url.searchParams.get('token') || undefined;
   }
 }

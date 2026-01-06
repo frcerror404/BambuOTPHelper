@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bambu OTP Viewer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #000;
+      --text-active: #fff;
+      --text-inactive: #5a5a5a;
+      --accent: #7cf9ff;
+      --progress-bg: #1b1b1b;
+      --progress-fill: #7cf9ff;
+      --status-red: #ff4d4d;
+      --status-yellow: #f1c40f;
+      --status-green: #4cd964;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text-active);
+      font-family: 'Space Grotesk', 'Segoe UI', system-ui, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .screen {
+      width: 100vw;
+      height: 100vh;
+      max-width: 1280px;
+      max-height: 720px;
+      padding: 32px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 24px;
+    }
+
+    #status-indicator {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      font-size: 14px;
+    }
+
+    #status-indicator .dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      box-shadow: 0 0 12px currentColor;
+    }
+
+    #status-indicator.offline { color: var(--status-red); }
+    #status-indicator.connecting { color: var(--status-yellow); }
+    #status-indicator.online { color: var(--status-green); }
+
+    #code-display {
+      font-size: clamp(64px, 10vw, 150px);
+      font-weight: 700;
+      letter-spacing: 14px;
+      text-align: center;
+      text-shadow: 0 0 16px rgba(124, 249, 255, 0.35);
+      transition: color 0.2s ease, opacity 0.2s ease;
+      opacity: 0.95;
+    }
+
+    #code-display.inactive {
+      color: var(--text-inactive);
+      opacity: 0.7;
+      text-shadow: none;
+    }
+
+    #progress-wrapper {
+      position: absolute;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(90vw, 900px);
+      background: var(--progress-bg);
+      border-radius: 999px;
+      overflow: hidden;
+      height: 16px;
+      box-shadow: 0 0 14px rgba(124, 249, 255, 0.2) inset;
+    }
+
+    #progress-bar {
+      height: 100%;
+      width: 100%;
+      transform-origin: left;
+      background: linear-gradient(90deg, var(--progress-fill), #3bd0ff);
+      transition: width 0.2s linear;
+    }
+
+    #login-panel {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      backdrop-filter: blur(3px);
+    }
+
+    #login-card {
+      background: #0f0f0f;
+      padding: 24px 28px;
+      border-radius: 14px;
+      border: 1px solid #1f1f1f;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+      width: min(420px, 90vw);
+    }
+
+    #login-card h1 {
+      margin: 0 0 12px;
+      font-size: 22px;
+      letter-spacing: 0.6px;
+      color: #e6e6e6;
+    }
+
+    #login-card p {
+      margin: 0 0 16px;
+      color: #9a9a9a;
+      font-size: 14px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      color: #cfcfcf;
+      margin-bottom: 6px;
+      letter-spacing: 0.3px;
+    }
+
+    input[type="text"],
+    input[type="password"] {
+      width: 100%;
+      padding: 12px 14px;
+      background: #161616;
+      border: 1px solid #2b2b2b;
+      border-radius: 10px;
+      color: #eaeaea;
+      font-size: 15px;
+      margin-bottom: 14px;
+      outline: none;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 10px;
+      font-weight: 700;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      background: linear-gradient(90deg, #7cf9ff, #3bd0ff);
+      color: #000;
+      cursor: pointer;
+      box-shadow: 0 8px 24px rgba(124, 249, 255, 0.25);
+    }
+
+    #login-error {
+      color: #ff8080;
+      min-height: 18px;
+      font-size: 13px;
+      margin-top: 6px;
+    }
+
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="screen">
+    <div id="status-indicator" class="offline">
+      <span class="dot">●</span>
+      <span class="label">Disconnected</span>
+    </div>
+
+    <div id="code-display" class="inactive">- - - - - -</div>
+
+    <div id="progress-wrapper">
+      <div id="progress-bar" style="width: 0%"></div>
+    </div>
+
+    <div id="login-panel">
+      <div id="login-card">
+        <h1>Secure OTP Viewer</h1>
+        <p>Please sign in to start receiving codes.</p>
+        <form id="login-form">
+          <label for="username">Username</label>
+          <input id="username" name="username" type="text" autocomplete="username" required>
+
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required>
+
+          <button type="submit">Sign In</button>
+          <div id="login-error"></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const statusEl = document.getElementById('status-indicator');
+      const statusLabel = statusEl.querySelector('.label');
+      const codeDisplay = document.getElementById('code-display');
+      const progressBar = document.getElementById('progress-bar');
+      const loginPanel = document.getElementById('login-panel');
+      const loginForm = document.getElementById('login-form');
+      const loginError = document.getElementById('login-error');
+      const usernameInput = document.getElementById('username');
+      const passwordInput = document.getElementById('password');
+
+      let token = localStorage.getItem('auth_token') || '';
+      let ws;
+      let reconnectDelay = 1000;
+      let reconnectTimeout;
+      let countdownInterval;
+      let expiresAt = 0;
+      let totalDuration = 0;
+
+      const setStatus = (state) => {
+        statusEl.classList.remove('offline', 'connecting', 'online');
+        if (state === 'online') {
+          statusEl.classList.add('online');
+          statusLabel.textContent = 'Connected';
+        } else if (state === 'connecting') {
+          statusEl.classList.add('connecting');
+          statusLabel.textContent = 'Connecting';
+        } else {
+          statusEl.classList.add('offline');
+          statusLabel.textContent = 'Disconnected';
+        }
+      };
+
+      const keepScreenAwake = async () => {
+        if ('wakeLock' in navigator) {
+          try {
+            const lock = await navigator.wakeLock.request('screen');
+            lock.addEventListener('release', () => keepScreenAwake());
+          } catch (err) {
+            console.warn('Wake lock not available', err);
+          }
+        }
+      };
+
+      const showLogin = () => {
+        loginPanel.classList.remove('hidden');
+        loginError.textContent = '';
+        setStatus('offline');
+      };
+
+      const hideLogin = () => {
+        loginPanel.classList.add('hidden');
+      };
+
+      const resetCountdown = () => {
+        if (countdownInterval) {
+          clearInterval(countdownInterval);
+        }
+        progressBar.style.width = '0%';
+        codeDisplay.textContent = '- - - - - -';
+        codeDisplay.classList.add('inactive');
+      };
+
+      const updateProgress = () => {
+        if (!expiresAt || !totalDuration) return;
+        const remaining = Math.max(0, expiresAt - Date.now());
+        const percent = Math.max(0, Math.min(100, (remaining / totalDuration) * 100));
+        progressBar.style.width = `${percent}%`;
+
+        if (remaining <= 0) {
+          resetCountdown();
+        }
+      };
+
+      const startCountdown = (payload) => {
+        const received = new Date(payload.receivedAt).getTime();
+        expiresAt = new Date(payload.expiresAt).getTime();
+        totalDuration = Math.max(1, expiresAt - received);
+
+        codeDisplay.textContent = payload.code;
+        codeDisplay.classList.remove('inactive');
+        codeDisplay.style.color = 'var(--text-active)';
+
+        updateProgress();
+        if (countdownInterval) clearInterval(countdownInterval);
+        countdownInterval = setInterval(updateProgress, 250);
+      };
+
+      const handleOtp = (payload) => {
+        if (!payload || !payload.code) return;
+        startCountdown(payload);
+      };
+
+      const fetchLatestOtp = async () => {
+        if (!token) return;
+        try {
+          const res = await fetch('/otp', {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+
+          if (res.status === 401) {
+            localStorage.removeItem('auth_token');
+            token = '';
+            showLogin();
+            return;
+          }
+
+          if (!res.ok) return;
+          const data = await res.json();
+          if (data.code) {
+            handleOtp(data);
+          } else {
+            resetCountdown();
+          }
+        } catch (err) {
+          console.warn('Failed to fetch latest OTP', err);
+        }
+      };
+
+      const connectWebSocket = () => {
+        if (!token) return;
+        clearTimeout(reconnectTimeout);
+        setStatus('connecting');
+
+        const wsUrl = `${location.origin.replace('http', 'ws')}/ws?token=${encodeURIComponent(token)}`;
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+          setStatus('online');
+          reconnectDelay = 1000;
+          fetchLatestOtp();
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            handleOtp(data);
+          } catch (err) {
+            console.warn('Invalid message', err);
+          }
+        };
+
+        const scheduleReconnect = () => {
+          setStatus('offline');
+          reconnectTimeout = setTimeout(connectWebSocket, reconnectDelay);
+          reconnectDelay = Math.min(reconnectDelay * 2, 30000);
+        };
+
+        ws.onerror = () => {
+          ws.close();
+        };
+
+        ws.onclose = () => {
+          scheduleReconnect();
+        };
+      };
+
+      loginForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        loginError.textContent = '';
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value;
+
+        try {
+          const res = await fetch('/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password }),
+          });
+
+          if (!res.ok) {
+            loginError.textContent = 'Invalid username or password.';
+            return;
+          }
+
+          const data = await res.json();
+          token = data.token;
+          localStorage.setItem('auth_token', token);
+          hideLogin();
+          keepScreenAwake();
+          connectWebSocket();
+        } catch (err) {
+          loginError.textContent = 'Unable to sign in right now.';
+        }
+      });
+
+      const init = () => {
+        if (token) {
+          hideLogin();
+          keepScreenAwake();
+          connectWebSocket();
+        } else {
+          showLogin();
+        }
+      };
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          keepScreenAwake();
+        }
+      });
+
+      init();
+    })();
+  </script>
+</body>
+</html>
