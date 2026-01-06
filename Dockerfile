@@ -2,6 +2,7 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 COPY package.json tsconfig.json .npmrc* ./
 COPY src ./src
+COPY public ./public
 RUN npm install --prefer-offline --no-audit --progress=false \
   && npm run build
 
