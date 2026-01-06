@@ -4,6 +4,7 @@ services:
     build: .
     container_name: bambu-otp-service
     environment:
+      - TZ=${TZ:-EST}
       - PORT=3000
       - GMAIL_USER=${GMAIL_USER}
       - GMAIL_APP_PASSWORD=${GMAIL_APP_PASSWORD}
@@ -15,6 +16,9 @@ services:
       - OTP_MQTT_TOPIC=${OTP_MQTT_TOPIC:-bambu/otp}
       - OTP_MQTT_USERNAME=${OTP_MQTT_USERNAME}
       - OTP_MQTT_PASSWORD=${OTP_MQTT_PASSWORD}
+      - UI_USERNAME=${UI_USERNAME:-admin}
+      - UI_PASSWORD=${UI_PASSWORD:-password}
+      - AUTH_SECRET=${AUTH_SECRET:-supersecretkey}
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=${TRAEFIK_NETWORK:-traefik_proxy}"
