@@ -17,7 +17,7 @@ services:
       - OTP_MQTT_PASSWORD=${OTP_MQTT_PASSWORD}
     labels:
       - "traefik.enable=true"
-      - "traefik.docker.network=${TRAEFIK_NETWORK:-traefik_proxy}"
+      - "traefik.docker.network=traefik"
       - "traefik.http.routers.bambu-otp.rule=Host(`${OTP_DOMAIN}`)"
       - "traefik.http.routers.bambu-otp.entrypoints=websecure"
       - "traefik.http.routers.bambu-otp.tls=true"
@@ -27,21 +27,21 @@ services:
       - "3000"
     restart: unless-stopped
     networks:
-      - ${TRAEFIK_NETWORK:-traefik_proxy}
+      - traefik
 
   mqtt-broker:
     image: eclipse-mosquitto:2
     container_name: mqtt-broker
     restart: unless-stopped
     networks:
-      - ${TRAEFIK_NETWORK:-traefik_proxy}
+      - traefik
     volumes:
       - /root/docker-setup/mqtt/config:/mosquitto/config
       - /root/docker-setup/mqtt/data:/mosquitto/data
       - /root/docker-setup/mqtt/log:/mosquitto/log
     labels:
       - traefik.enable=true
-      - traefik.docker.network=${TRAEFIK_NETWORK:-traefik_proxy}
+      - traefik.docker.network=traefik
 
       # TLS MQTT router
       - traefik.tcp.routers.mqtts.rule=HostSNI(`${OTP_DOMAIN}`)
@@ -53,5 +53,6 @@ services:
       - traefik.tcp.services.mqtt.loadbalancer.server.port=1883
 
 networks:
-  ${TRAEFIK_NETWORK:-traefik_proxy}:
+  traefik:
+    name: ${TRAEFIK_NETWORK:-traefik_proxy}
     external: true
