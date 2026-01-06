@@ -10,7 +10,7 @@ async function bootstrap() {
   });
   const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
-  app.useStaticAssets(join(__dirname, '..', 'public'));
+  app.useStaticAssets(join(__dirname, '.', 'public'));
 
   await app.listen(port);
   console.log(`Bambu OTP Service listening on port ${port}`);
