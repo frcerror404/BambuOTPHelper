@@ -74,6 +74,11 @@ export class ImapService implements OnModuleInit, OnModuleDestroy {
     }
 
     const status = await this.client.status('INBOX', { messages: true });
+
+    if (!status.messages) {
+      return;
+    }
+
     if (status.messages <= this.lastKnownCount) {
       return;
     }
@@ -98,7 +103,7 @@ export class ImapService implements OnModuleInit, OnModuleDestroy {
     if (!message) {
       return;
     }
-
+0
     if (!message.source) {
       return;
     }
