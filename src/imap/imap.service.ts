@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { ImapFlow, ExistsEvent } from 'imapflow';
+import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import { OtpService } from '../otp/otp.service';
 
@@ -7,6 +7,11 @@ import { OtpService } from '../otp/otp.service';
 export class ImapService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ImapService.name);
   private client?: ImapFlow;
+  private pollTimer?: NodeJS.Timeout;
+  private lastKnownCount = 0;
+  private readonly pollIntervalMs = process.env.IMAP_POLL_INTERVAL_MS
+    ? Number(process.env.IMAP_POLL_INTERVAL_MS)
+    : 2000;
 
   constructor(private readonly otpService: OtpService) {}
 
@@ -25,6 +30,7 @@ export class ImapService implements OnModuleInit, OnModuleDestroy {
       secure: true,
       auth: { user, pass: password },
       logger: false,
+      disableAutoIdle: true,
     });
 
     this.client.on('error', (err) => {
@@ -35,6 +41,10 @@ export class ImapService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleDestroy() {
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = undefined;
+    }
     await this.client?.logout().catch((error) => {
       this.logger.error('Error closing IMAP connection', error as Error);
     });
@@ -46,14 +56,33 @@ export class ImapService implements OnModuleInit, OnModuleDestroy {
     }
 
     await this.client.connect();
-    await this.client.mailboxOpen('INBOX');
+    const mailbox = await this.client.mailboxOpen('INBOX');
+    this.lastKnownCount = mailbox.exists;
     this.logger.log('Connected to Gmail IMAP and monitoring INBOX');
 
-    this.client.on('exists', async (event: ExistsEvent) => {
-      await this.handleNewMail(event.count).catch((error) => {
-        this.logger.error('Error handling new mail', error as Error);
+    await this.pollForNewMail();
+    this.pollTimer = setInterval(() => {
+      void this.pollForNewMail().catch((error) => {
+        this.logger.error('Error polling for new mail', error as Error);
       });
-    });
+    }, this.pollIntervalMs);
+  }
+
+  private async pollForNewMail() {
+    if (!this.client) {
+      return;
+    }
+
+    const status = await this.client.status('INBOX', { messages: true });
+    if (status.messages <= this.lastKnownCount) {
+      return;
+    }
+
+    for (let sequence = this.lastKnownCount + 1; sequence <= status.messages; sequence += 1) {
+      await this.handleNewMail(sequence);
+    }
+
+    this.lastKnownCount = status.messages;
   }
 
   private async handleNewMail(sequence: number) {

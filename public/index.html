@@ -37,15 +37,15 @@
     .screen {
       width: 100vw;
       height: 100vh;
-      max-width: 1280px;
-      max-height: 720px;
-      padding: 32px;
+      max-width: 1920px;
+      max-height: 1080px;
+      padding: 48px;
       position: relative;
       display: flex;
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      gap: 24px;
+      gap: 32px;
     }
 
     #status-indicator {
@@ -58,7 +58,7 @@
       font-weight: 600;
       letter-spacing: 0.5px;
       text-transform: uppercase;
-      font-size: 14px;
+      font-size: 16px;
     }
 
     #status-indicator .dot {
@@ -73,9 +73,9 @@
     #status-indicator.online { color: var(--status-green); }
 
     #code-display {
-      font-size: clamp(64px, 10vw, 150px);
+      font-size: clamp(96px, 12vw, 220px);
       font-weight: 700;
-      letter-spacing: 14px;
+      letter-spacing: 18px;
       text-align: center;
       text-shadow: 0 0 16px rgba(124, 249, 255, 0.35);
       transition: color 0.2s ease, opacity 0.2s ease;
@@ -90,14 +90,14 @@
 
     #progress-wrapper {
       position: absolute;
-      bottom: 32px;
+      bottom: 40px;
       left: 50%;
       transform: translateX(-50%);
-      width: min(90vw, 900px);
+      width: min(80vw, 1200px);
       background: var(--progress-bg);
       border-radius: 999px;
       overflow: hidden;
-      height: 16px;
+      height: 20px;
       box-shadow: 0 0 14px rgba(124, 249, 255, 0.2) inset;
     }
 
@@ -122,16 +122,16 @@
 
     #login-card {
       background: #0f0f0f;
-      padding: 24px 28px;
+      padding: 32px 36px;
       border-radius: 14px;
       border: 1px solid #1f1f1f;
       box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
-      width: min(420px, 90vw);
+      width: min(520px, 90vw);
     }
 
     #login-card h1 {
       margin: 0 0 12px;
-      font-size: 22px;
+      font-size: 26px;
       letter-spacing: 0.6px;
       color: #e6e6e6;
     }
@@ -139,12 +139,12 @@
     #login-card p {
       margin: 0 0 16px;
       color: #9a9a9a;
-      font-size: 14px;
+      font-size: 16px;
     }
 
     label {
       display: block;
-      font-size: 13px;
+      font-size: 14px;
       color: #cfcfcf;
       margin-bottom: 6px;
       letter-spacing: 0.3px;
@@ -158,14 +158,14 @@
       border: 1px solid #2b2b2b;
       border-radius: 10px;
       color: #eaeaea;
-      font-size: 15px;
+      font-size: 16px;
       margin-bottom: 14px;
       outline: none;
     }
 
     button {
       width: 100%;
-      padding: 12px;
+      padding: 14px;
       border: none;
       border-radius: 10px;
       font-weight: 700;
