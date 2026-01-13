@@ -7,87 +7,150 @@ import { OtpService } from '../otp/otp.service';
 export class ImapService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ImapService.name);
   private client?: ImapFlow;
-  private pollTimer?: NodeJS.Timeout;
+  private reconnectTimer?: NodeJS.Timeout;
+  private idleLoopActive = false;
   private lastKnownCount = 0;
-  private readonly pollIntervalMs = process.env.IMAP_POLL_INTERVAL_MS
-    ? Number(process.env.IMAP_POLL_INTERVAL_MS)
-    : 2000;
+  private readonly reconnectIntervalMs = process.env.IMAP_RECONNECT_INTERVAL_MS
+    ? Number(process.env.IMAP_RECONNECT_INTERVAL_MS)
+    : 60 * 60 * 1000;
+  private readonly imapUser = process.env.GMAIL_USER;
+  private readonly imapPassword = process.env.GMAIL_APP_PASSWORD;
 
   constructor(private readonly otpService: OtpService) {}
 
   async onModuleInit() {
-    const user = process.env.GMAIL_USER;
-    const password = process.env.GMAIL_APP_PASSWORD;
-
-    if (!user || !password) {
+    if (!this.imapUser || !this.imapPassword) {
       this.logger.error('GMAIL_USER and GMAIL_APP_PASSWORD must be set');
       return;
     }
-
-    this.client = new ImapFlow({
-      host: process.env.IMAP_HOST || 'imap.gmail.com',
-      port: process.env.IMAP_PORT ? Number(process.env.IMAP_PORT) : 993,
-      secure: true,
-      auth: { user, pass: password },
-      logger: false,
-      disableAutoIdle: true,
-    });
-
-    this.client.on('error', (err) => {
-      this.logger.error('IMAP connection error', err as Error);
-    });
-
-    await this.startListening();
+    this.client = this.createClient();
+    await this.startListening(this.client);
   }
 
   async onModuleDestroy() {
-    if (this.pollTimer) {
-      clearInterval(this.pollTimer);
-      this.pollTimer = undefined;
+    this.stopIdleLoop();
+
+    if (this.reconnectTimer) {
+      clearInterval(this.reconnectTimer);
+      this.reconnectTimer = undefined;
     }
+
     await this.client?.logout().catch((error) => {
       this.logger.error('Error closing IMAP connection', error as Error);
     });
   }
 
-  private async startListening() {
-    if (!this.client) {
-      return;
-    }
-
-    await this.client.connect();
-    const mailbox = await this.client.mailboxOpen('INBOX');
+  private async startListening(client: ImapFlow) {
+    await client.connect();
+    const mailbox = await client.mailboxOpen('INBOX');
     this.lastKnownCount = mailbox.exists;
     this.logger.log('Connected to Gmail IMAP and monitoring INBOX');
 
-    await this.pollForNewMail();
-    this.pollTimer = setInterval(() => {
-      void this.pollForNewMail().catch((error) => {
-        this.logger.error('Error polling for new mail', error as Error);
-      });
-    }, this.pollIntervalMs);
+    this.startIdleLoop();
+    this.scheduleReconnect();
   }
 
-  private async pollForNewMail() {
+  private scheduleReconnect() {
+    if (this.reconnectTimer) {
+      clearInterval(this.reconnectTimer);
+    }
+
+    this.reconnectTimer = setInterval(() => {
+      void this.restartConnection().catch((error) => {
+        this.logger.error('Error restarting IMAP connection', error as Error);
+      });
+    }, this.reconnectIntervalMs);
+  }
+
+  private async restartConnection() {
     if (!this.client) {
       return;
     }
 
-    const status = await this.client.status('INBOX', { messages: true });
+    this.logger.log('Restarting IMAP connection');
+    this.stopIdleLoop();
 
-    if (!status.messages) {
+    await this.client.logout().catch((error) => {
+      this.logger.error('Error closing IMAP connection', error as Error);
+    });
+
+    const newClient = this.createClient();
+    this.client = newClient;
+    await this.startListening(newClient);
+  }
+
+  private createClient() {
+    if (!this.imapUser || !this.imapPassword) {
+      throw new Error('GMAIL_USER and GMAIL_APP_PASSWORD must be set');
+    }
+
+    const client = new ImapFlow({
+      host: process.env.IMAP_HOST || 'imap.gmail.com',
+      port: process.env.IMAP_PORT ? Number(process.env.IMAP_PORT) : 993,
+      secure: true,
+      auth: { user: this.imapUser, pass: this.imapPassword },
+      logger: false,
+      disableAutoIdle: true,
+    });
+
+    client.on('error', (err) => {
+      this.logger.error('IMAP connection error', err as Error);
+    });
+
+    client.on('exists', (data) => {
+      void this.handleExists(data.count).catch((error) => {
+        this.logger.error('Error handling new mail notification', error as Error);
+      });
+    });
+
+    return client;
+  }
+
+  private startIdleLoop() {
+    if (this.idleLoopActive || !this.client) {
       return;
     }
 
-    if (status.messages <= this.lastKnownCount) {
+    this.idleLoopActive = true;
+    void this.runIdleLoop();
+  }
+
+  private stopIdleLoop() {
+    this.idleLoopActive = false;
+  }
+
+  private async runIdleLoop() {
+    if (!this.client) {
       return;
     }
 
-    for (let sequence = this.lastKnownCount + 1; sequence <= status.messages; sequence += 1) {
+    while (this.client && this.idleLoopActive) {
+      try {
+        await this.client.idle();
+      } catch (error) {
+        if (!this.idleLoopActive) {
+          return;
+        }
+        this.logger.error('IMAP idle error', error as Error);
+        await this.delay(1000);
+      }
+    }
+  }
+
+  private async handleExists(totalMessages: number) {
+    if (!this.client) {
+      return;
+    }
+
+    if (totalMessages <= this.lastKnownCount) {
+      return;
+    }
+
+    for (let sequence = this.lastKnownCount + 1; sequence <= totalMessages; sequence += 1) {
       await this.handleNewMail(sequence);
     }
 
-    this.lastKnownCount = status.messages;
+    this.lastKnownCount = totalMessages;
   }
 
   private async handleNewMail(sequence: number) {
@@ -103,7 +166,7 @@ export class ImapService implements OnModuleInit, OnModuleDestroy {
     if (!message) {
       return;
     }
-0
+
     if (!message.source) {
       return;
     }
@@ -135,5 +198,11 @@ export class ImapService implements OnModuleInit, OnModuleDestroy {
   private isFromBambu(subject?: string | null, fromText?: string): boolean {
     const combined = `${subject || ''} ${fromText || ''}`.toLowerCase();
     return combined.includes('bambu');
+  }
+
+  private async delay(ms: number) {
+    return new Promise((resolve) => {
+      setTimeout(resolve, ms);
+    });
   }
 }
