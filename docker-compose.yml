@@ -19,6 +19,7 @@ services:
       - UI_USERNAME=${UI_USERNAME:-admin}
       - UI_PASSWORD=${UI_PASSWORD:-password}
       - AUTH_SECRET=${AUTH_SECRET:-supersecretkey}
+      - IMAP_RECONNECT_INTERVAL_MS=${IMAP_RECONNECT_INTERVAL_MS:-10000}
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=${TRAEFIK_NETWORK:-traefik_proxy}"
