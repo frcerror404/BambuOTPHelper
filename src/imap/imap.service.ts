@@ -17,33 +17,11 @@ export class ImapService implements OnModuleInit, OnModuleDestroy {
   constructor(private readonly otpService: OtpService) {}
 
   async onModuleInit() {
-    const user = process.env.GMAIL_USER;
-    const password = process.env.GMAIL_APP_PASSWORD;
-
-    if (!user || !password) {
-      this.logger.error('GMAIL_USER and GMAIL_APP_PASSWORD must be set');
+    if (!this.ensureCredentials()) {
       return;
     }
 
-    this.client = new ImapFlow({
-      host: process.env.IMAP_HOST || 'imap.gmail.com',
-      port: process.env.IMAP_PORT ? Number(process.env.IMAP_PORT) : 993,
-      secure: true,
-      auth: { user, pass: password },
-      logger: false,
-      disableAutoIdle: true,
-    });
-
-    this.client.on('error', (err) => {
-      this.logger.error('IMAP connection error', err as Error);
-    });
-
-    this.client.on('exists', (data) => {
-      void this.handleExists(data.count).catch((error) => {
-        this.logger.error('Error handling new mail notification', error as Error);
-      });
-    });
-
+    this.client = this.createClient();
     await this.startListening();
   }
 
@@ -98,11 +76,50 @@ export class ImapService implements OnModuleInit, OnModuleDestroy {
       this.logger.error('Error closing IMAP connection', error as Error);
     });
 
+    this.client = this.createClient();
     await this.client.connect();
     const mailbox = await this.client.mailboxOpen('INBOX');
     this.lastKnownCount = mailbox.exists;
 
     this.startIdleLoop();
+  }
+
+  private ensureCredentials(): boolean {
+    const user = process.env.GMAIL_USER;
+    const password = process.env.GMAIL_APP_PASSWORD;
+
+    if (!user || !password) {
+      this.logger.error('GMAIL_USER and GMAIL_APP_PASSWORD must be set');
+      return false;
+    }
+
+    return true;
+  }
+
+  private createClient(): ImapFlow {
+    const user = process.env.GMAIL_USER ?? '';
+    const password = process.env.GMAIL_APP_PASSWORD ?? '';
+
+    const client = new ImapFlow({
+      host: process.env.IMAP_HOST || 'imap.gmail.com',
+      port: process.env.IMAP_PORT ? Number(process.env.IMAP_PORT) : 993,
+      secure: true,
+      auth: { user, pass: password },
+      logger: false,
+      disableAutoIdle: true,
+    });
+
+    client.on('error', (err) => {
+      this.logger.error('IMAP connection error', err as Error);
+    });
+
+    client.on('exists', (data) => {
+      void this.handleExists(data.count).catch((error) => {
+        this.logger.error('Error handling new mail notification', error as Error);
+      });
+    });
+
+    return client;
   }
 
   private startIdleLoop() {
