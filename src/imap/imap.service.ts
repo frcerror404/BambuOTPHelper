@@ -13,8 +13,6 @@ export class ImapService implements OnModuleInit, OnModuleDestroy {
   private readonly reconnectIntervalMs = process.env.IMAP_RECONNECT_INTERVAL_MS
     ? Number(process.env.IMAP_RECONNECT_INTERVAL_MS)
     : 60 * 60 * 1000;
-  private readonly imapUser = process.env.GMAIL_USER;
-  private readonly imapPassword = process.env.GMAIL_APP_PASSWORD;
 
   constructor(private readonly otpService: OtpService) {}
 
@@ -97,13 +95,72 @@ export class ImapService implements OnModuleInit, OnModuleDestroy {
       this.logger.error('IMAP connection error', err as Error);
     });
 
-    client.on('exists', (data) => {
+    this.client.on('exists', (data) => {
       void this.handleExists(data.count).catch((error) => {
         this.logger.error('Error handling new mail notification', error as Error);
       });
     });
 
+    await this.startListening();
+  }
+
+  async onModuleDestroy() {
+    this.stopIdleLoop();
+
+    if (this.reconnectTimer) {
+      clearInterval(this.reconnectTimer);
+      this.reconnectTimer = undefined;
+    }
+
+    await this.client?.logout().catch((error) => {
+      this.logger.error('Error closing IMAP connection', error as Error);
+    });
+
     return client;
+  }
+
+  private startIdleLoop() {
+    if (this.idleLoopActive || !this.client) {
+      return;
+    }
+
+    this.idleLoopActive = true;
+    void this.runIdleLoop();
+  }
+
+    this.startIdleLoop();
+    this.scheduleReconnect();
+  }
+
+  private scheduleReconnect() {
+    if (this.reconnectTimer) {
+      clearInterval(this.reconnectTimer);
+    }
+
+    this.reconnectTimer = setInterval(() => {
+      void this.restartConnection().catch((error) => {
+        this.logger.error('Error restarting IMAP connection', error as Error);
+      });
+    }, this.reconnectIntervalMs);
+  }
+
+  private async restartConnection() {
+    if (!this.client) {
+      return;
+    }
+
+    this.logger.log('Restarting IMAP connection');
+    this.stopIdleLoop();
+
+    await this.client.logout().catch((error) => {
+      this.logger.error('Error closing IMAP connection', error as Error);
+    });
+
+    await this.client.connect();
+    const mailbox = await this.client.mailboxOpen('INBOX');
+    this.lastKnownCount = mailbox.exists;
+
+    this.startIdleLoop();
   }
 
   private startIdleLoop() {
