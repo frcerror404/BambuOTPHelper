@@ -17,81 +17,24 @@ export class ImapService implements OnModuleInit, OnModuleDestroy {
   constructor(private readonly otpService: OtpService) {}
 
   async onModuleInit() {
-    if (!this.imapUser || !this.imapPassword) {
+    const user = process.env.GMAIL_USER;
+    const password = process.env.GMAIL_APP_PASSWORD;
+
+    if (!user || !password) {
       this.logger.error('GMAIL_USER and GMAIL_APP_PASSWORD must be set');
       return;
     }
-    this.client = this.createClient();
-    await this.startListening(this.client);
-  }
 
-  async onModuleDestroy() {
-    this.stopIdleLoop();
-
-    if (this.reconnectTimer) {
-      clearInterval(this.reconnectTimer);
-      this.reconnectTimer = undefined;
-    }
-
-    await this.client?.logout().catch((error) => {
-      this.logger.error('Error closing IMAP connection', error as Error);
-    });
-  }
-
-  private async startListening(client: ImapFlow) {
-    await client.connect();
-    const mailbox = await client.mailboxOpen('INBOX');
-    this.lastKnownCount = mailbox.exists;
-    this.logger.log('Connected to Gmail IMAP and monitoring INBOX');
-
-    this.startIdleLoop();
-    this.scheduleReconnect();
-  }
-
-  private scheduleReconnect() {
-    if (this.reconnectTimer) {
-      clearInterval(this.reconnectTimer);
-    }
-
-    this.reconnectTimer = setInterval(() => {
-      void this.restartConnection().catch((error) => {
-        this.logger.error('Error restarting IMAP connection', error as Error);
-      });
-    }, this.reconnectIntervalMs);
-  }
-
-  private async restartConnection() {
-    if (!this.client) {
-      return;
-    }
-
-    this.logger.log('Restarting IMAP connection');
-    this.stopIdleLoop();
-
-    await this.client.logout().catch((error) => {
-      this.logger.error('Error closing IMAP connection', error as Error);
-    });
-
-    const newClient = this.createClient();
-    this.client = newClient;
-    await this.startListening(newClient);
-  }
-
-  private createClient() {
-    if (!this.imapUser || !this.imapPassword) {
-      throw new Error('GMAIL_USER and GMAIL_APP_PASSWORD must be set');
-    }
-
-    const client = new ImapFlow({
+    this.client = new ImapFlow({
       host: process.env.IMAP_HOST || 'imap.gmail.com',
       port: process.env.IMAP_PORT ? Number(process.env.IMAP_PORT) : 993,
       secure: true,
-      auth: { user: this.imapUser, pass: this.imapPassword },
+      auth: { user, pass: password },
       logger: false,
       disableAutoIdle: true,
     });
 
-    client.on('error', (err) => {
+    this.client.on('error', (err) => {
       this.logger.error('IMAP connection error', err as Error);
     });
 
@@ -115,18 +58,17 @@ export class ImapService implements OnModuleInit, OnModuleDestroy {
     await this.client?.logout().catch((error) => {
       this.logger.error('Error closing IMAP connection', error as Error);
     });
-
-    return client;
   }
 
-  private startIdleLoop() {
-    if (this.idleLoopActive || !this.client) {
+  private async startListening() {
+    if (!this.client) {
       return;
     }
 
-    this.idleLoopActive = true;
-    void this.runIdleLoop();
-  }
+    await this.client.connect();
+    const mailbox = await this.client.mailboxOpen('INBOX');
+    this.lastKnownCount = mailbox.exists;
+    this.logger.log('Connected to Gmail IMAP and monitoring INBOX');
 
     this.startIdleLoop();
     this.scheduleReconnect();
