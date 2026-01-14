@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node dist/main.js",
     "start:dev": "ts-node-dev --respawn --transpile-only src/main.ts",
-    "build": "tsc -p tsconfig.json && cp -r public dist/public"
+    "build": "tsc -p tsconfig.json && cp -r public dist/public",
+    "build-test": "tsc -p tsconfig.json"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.7",
